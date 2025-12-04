@@ -43,12 +43,12 @@ int main() {
 	auto width = grid[0].size();
 	auto height = grid.size();
 
-
 	uint64_t part1 = 0;
 	uint64_t part2 = 0;
 
 
-	for (int blocks_removed = 0; blocks_removed > 0;) {
+	int blocks_removed;
+	do {
 		blocks_removed = 0;
 		auto new_grid = grid;
 
@@ -66,8 +66,8 @@ int main() {
 		}
 
 		part2 += blocks_removed;
-		grid = new_grid;
-	} 
+		grid = std::move(new_grid);
+	} while (blocks_removed > 0);
 
 	std::cout << part1 << std::endl;
 	std::cout << part2 << std::endl;
