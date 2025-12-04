@@ -7,13 +7,11 @@
 #include <fmt/ranges.h>
 #include <ranges>
 #include <set>
+#include <chrono>
 
 
 
-bool is_accessible(const std::vector<std::string>& grid, int x, int y) {
-	int w = grid[0].size();
-	int h = grid.size();
-
+inline bool is_accessible(const std::vector<std::string>& grid, int w, int h, int x, int y) {
 	int rolls_nearby = 0;
 	for (int dy = -1; dy <= 1; dy++) {
 		for (int dx = -1; dx <= 1; dx++) {
@@ -24,8 +22,7 @@ bool is_accessible(const std::vector<std::string>& grid, int x, int y) {
 				((dy + y) <  0) ||
 				((dy + y) >=  h) )
 				continue;
-			if (grid[dy+y][dx+x] == '@')
-				rolls_nearby++;
+			rolls_nearby += (grid[dy+y][dx+x] == '@');
 		}
 	}
 
@@ -47,15 +44,21 @@ int main() {
 	uint64_t part2 = 0;
 
 
+
+	auto start = std::chrono::high_resolution_clock::now();
 	int blocks_removed;
-	do {
+	auto new_grid = grid;
+	bool keep_running;
+	for (;;) {
 		blocks_removed = 0;
-		auto new_grid = grid;
+		keep_running = false;
 
 		for (int y = 0; y < height; y++) {
 			for (int x = 0; x < width; x++) {
-				if (grid[y][x] == '@' && is_accessible(grid, x, y)) {
+				if (grid[y][x] == '@' && is_accessible(grid, width, height, x, y)) {
 					blocks_removed++;
+					part2++;
+					keep_running = true;
 					new_grid[y][x] = '.';
 				}
 			}
@@ -64,11 +67,21 @@ int main() {
 		if (part1 == 0) {
 			part1 = blocks_removed;
 		}
+		
+		if (keep_running) {
+			grid = new_grid;
+		} else {
+			break;
+		}
+	};
 
-		part2 += blocks_removed;
-		grid = std::move(new_grid);
-	} while (blocks_removed > 0);
+	auto end = std::chrono::high_resolution_clock::now();
+	auto duration = end - start;
 
 	std::cout << part1 << std::endl;
 	std::cout << part2 << std::endl;
+
+	auto us = std::chrono::duration_cast<std::chrono::microseconds>(duration);
+    std::cout << "Time taken: " << us.count()/1000.0f << " ms" << std::endl;	
+
 }
