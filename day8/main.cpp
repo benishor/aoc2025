@@ -87,8 +87,7 @@ int main() {
 
 	auto start = std::chrono::high_resolution_clock::now();
 	std::vector<junction> junctions;
-	std::map<uint64_t, uint64_t> distances; // key is : from*1024+to
-	std::map<uint64_t, uint64_t> reverse_distances;
+	std::map<uint64_t, uint64_t> reverse_distances; // distance -> from*1024 + to
 
 	for (std::string l; std::getline(f, l);) {
 		std::stringstream ss(l);
@@ -103,9 +102,6 @@ int main() {
 		for (uint64_t j = i+1; j < junctions.size(); j++) {
 			auto d = distance_squared(junctions[i], junctions[j]);
 			uint64_t key1 = i * 1024 + j;
-			uint64_t key2 = j * 1024 + i;
-			distances[key1] = d;
-			distances[key2] = d;
 			// std::cout << "key1 is: " << key1 << ", key2: " << key2  << ", d: " << d << std::endl;
 			reverse_distances[d] = key1;
 		}
