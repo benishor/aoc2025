@@ -21,15 +21,10 @@ std::ostream& operator << (std::ostream& out, const junction& a) {
 }
 
 
-uint64_t distance(const junction& a, const junction& b) {
+uint64_t distance_squared(const junction& a, const junction& b) {
 	int64_t dx = b.x - a.x;
 	int64_t dy = b.y - a.y;
 	int64_t dz = b.z - a.z;
-	// std::cout << "distance between " << a << " and " << b << std::endl;
-	// std::cout << "dx: " << dx << ", dy: " << dy << ", dz: " << dz << std::endl;
-	if (dx == 0 && dy == 0 && dz == 0) {
-		return 0;
-	}
 	uint64_t result = dx*dx + dy*dy + dz*dz;
 	// std::cout << "result is " << result << std::endl;
 	return result;
@@ -106,7 +101,7 @@ int main() {
 
 	for (uint64_t i = 0; i < (junctions.size() - 1); i++) {
 		for (uint64_t j = i+1; j < junctions.size(); j++) {
-			auto d = distance(junctions[i], junctions[j]);
+			auto d = distance_squared(junctions[i], junctions[j]);
 			uint64_t key1 = i * 1024 + j;
 			uint64_t key2 = j * 1024 + i;
 			distances[key1] = d;
@@ -123,7 +118,7 @@ int main() {
 		uint64_t from = rd.second >> (uint64_t)10;
 		uint64_t to = rd.second & (uint64_t)1023;
 		if (connect(from, to, circuits) == junctions.size() ) {
-			// stop, we have one circuit.
+			// stop, we have one circuit containing all junctions
 			part2 = junctions[from].x * junctions[to].x;
 			break;
 		}
