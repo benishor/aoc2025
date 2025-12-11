@@ -54,6 +54,14 @@ struct bbox {
 	int min_y;
 	int max_x;
 	int max_y;
+
+	bool contains(int x, int y) {
+		return (x >= min_x && x <= max_x && y >= min_y && y <= max_y);
+	}
+
+	bool contains_strict(int x, int y) {
+		return (x > min_x && x < max_x && y > min_y && y < max_y);
+	}
 };
 
 
@@ -143,6 +151,7 @@ int edge_for_point(const std::vector<std::pair<int64_t, int64_t>>& locations, in
 
 std::map<std::pair<int64_t, int64_t>, bool> point_cache;
 
+std::vector<bbox> valid_rectangles;
 
 
 bool point_inside_polygon(const std::vector<std::pair<int64_t, int64_t>>& locations, int64_t x1, int64_t y1, const bbox& box) {
@@ -154,6 +163,14 @@ bool point_inside_polygon(const std::vector<std::pair<int64_t, int64_t>>& locati
 	if (point_cache.count(p) > 0) {
 		return point_cache[p];
 	}
+
+	for (auto& b : valid_rectangles) {
+		if (b.contains(x1, y1)) {
+			point_cache[p] = true;
+			return true;
+		}
+	}
+
 
 	// is on an edge?
 	if (edge_for_point(locations, x1, y1) != -1) {
@@ -355,7 +372,9 @@ bool point_inside_polygon(const std::vector<std::pair<int64_t, int64_t>>& locati
 	// return true;
 }
 
-bool is_valid_rectangle(const std::vector<std::pair<int64_t, int64_t>>& locations, int a, int b, const bbox& box) {
+
+
+bool is_valid_rectangle(const std::vector<std::pair<int64_t, int64_t>>& locations, int a, int b) {
 	int64_t x1 = locations[a].first;
 	int64_t y1 = locations[a].second;
 
@@ -366,19 +385,6 @@ bool is_valid_rectangle(const std::vector<std::pair<int64_t, int64_t>>& location
 	if (x1 == x2 || y1 == y2)
 		return true;
 
-	// find the other two points
-	auto x3 = x1;
-	auto y3 = y2;
-
-	auto x4 = x2;
-	auto y4 = y1;
-
-	// check if any of the points is outside the polygon
-	if (!point_inside_polygon(locations, x3, y3, box))
-		return false;
-
-	if (!point_inside_polygon(locations, x4, y4, box))
-		return false;
 
 	// check perimeter inside polygon
 	int64_t from_y = std::min(y1, y2);
@@ -386,84 +392,39 @@ bool is_valid_rectangle(const std::vector<std::pair<int64_t, int64_t>>& location
 	int64_t to_x = std::max(x1, x2);
 	int64_t to_y = std::max(y1, y2);
 
-	// std::set<int> touched_edges;
+	// [9:14 PM, 12/9/2025] Bogdan Mocanu: Efectiv sunt doar 3 cazuri de verificat la un area vs un edge
+	// [9:16 PM, 12/9/2025] Bogdan Mocanu: 1) edge trece transversal stanga-dreapta prin area (y trebuie sa fie strict intre y-ii ariei)
+	// 									2) edge trece transversal sus-jos prin area (x trebuie sa fie strict intre x-ii ariei)
+	// 									3) edge are un capat inauntrul ariei, iarasi verificare stricta
 
-	// touched_edges.clear();
-	// for (int64_t x = from_x; x < to_x; x++) {
-	// 	auto a = edge_for_point(locations, x, y1);
-	// 	if (a != -1)
-	// 		touched_edges.insert(a);
+	// Cuvantul strict de mai sus (comparare cu > <, nu >=, <=) rezolva cea mai mare problema: edge-urile care trec pe bordura ariei
 
-	// 	if (touched_edges.size() > 2)
-	// 		return false;
-	// }
+	bbox bb{from_x, from_y, to_x, to_y};
+	for (int i = 0; i < locations.size(); i++) {
+		int j = (i + 1) % locations.size();
 
-	// touched_edges.clear();
-	// for (int64_t x = from_x; x < to_x; x++) {
-	// 	auto a = edge_for_point(locations, x, y2);
-	// 	if (a != -1)
-	// 		touched_edges.insert(a);
-
-	// 	if (touched_edges.size() > 2)
-	// 		return false;
-	// }
-
-
-	// touched_edges.clear();
-	// for (int64_t y = from_y; y < to_y; y++) {
-	// 	auto a = edge_for_point(locations, from_x, y);
-	// 	if (a != -1)
-	// 		touched_edges.insert(a);
-
-	// 	if (touched_edges.size() > 2)
-	// 		return false;
-	// }
-
-	// touched_edges.clear();
-	// for (int64_t y = from_y; y < to_y; y++) {
-	// 	auto a = edge_for_point(locations, to_x, y);
-	// 	if (a != -1)
-	// 		touched_edges.insert(a);
-
-	// 	if (touched_edges.size() > 2)
-	// 		return false;
-	// }
-
-	for (int64_t y = from_y; y <= to_y; y++) {
-
-		if (!point_inside_polygon(locations, from_x, y, box)) {
-			std::cout << "point not in polygon: " << from_x << ", " << y << std::endl;
+		bool is_horizontal = locations[i].second == locations[j].second;
+		if (is_horizontal 
+			&& locations[i].second > from_y 
+			&& locations[i].second < to_y 
+			&& locations[i].first <= to_x 
+			&& locations[j].first >= from_x) {
 			return false;
 		}
 
-		if (!point_inside_polygon(locations, to_x, y, box)) {
-			std::cout << "point not in polygon: " << to_x << ", " << y << std::endl;
+		if (!is_horizontal 
+			&& locations[i].first > from_x 
+			&& locations[i].first < to_x 
+			&& locations[i].second < to_y 
+			&& locations[j].second > from_y) {
+			return false;
+		}
+
+		if (bb.contains_strict(locations[i].first, locations[i].second) ||
+			bb.contains_strict(locations[j].first, locations[j].second)) {
 			return false;
 		}
 	}
-
-	for (int64_t x = from_x; x <= to_x; x++) {
-		if (!point_inside_polygon(locations, x, from_y, box)) {
-			std::cout << "point not in polygon: " << x << ", " << from_y << std::endl;
-			return false;
-
-		}
-
-		if (!point_inside_polygon(locations, x, to_y, box)) {
-			std::cout << "point not in polygon: " << x << ", " << to_y << std::endl;
-			return false;
-		}
-	}
-
-	// add all points to cache
-	// for (int x = from_x; x <= to_x; x++) {
-	// 	for (int y = from_y; y <= to_y; y++) {
-	// 		auto p = std::pair<int64_t, int64_t>({x, y});
-	// 		if (!point_cache.count(p)) {
-	// 			point_cache[p] = true;
-	// 		}
-	// 	}
-	// }
 
 
 	return true;
@@ -476,13 +437,6 @@ int main() {
 	uint64_t part2 = 0;
 
 	auto start = std::chrono::high_resolution_clock::now();
-	bbox box;
-	box.min_x = std::numeric_limits<int>::max();
-	box.min_y = std::numeric_limits<int>::max();
-	box.max_x = std::numeric_limits<int>::min();
-	box.max_y = std::numeric_limits<int>::min();
-
-	// std::cout << "bbox: [min_x: " << box.min_x << ", max_x: " << box.max_x << ", min_y: " << box.min_y << ", max_y: " << box.max_y << "]" << std::endl;
 
 	std::vector<std::pair<int64_t, int64_t>> locations;
 	for (std::string l; std::getline(f, l);) {
@@ -491,45 +445,32 @@ int main() {
 		char comma;
 		ss >> a >> comma >> b;
 		locations.push_back({a, b});
-		box.min_x = std::min(box.min_x, a);
-		box.max_x = std::max(box.max_x, a);
-
-		box.min_y = std::min(box.min_y, b);
-		box.max_y = std::max(box.max_y, b);
 	}
 
-	std::cout << "bbox: [min_x: " << box.min_x << ", max_x: " << box.max_x << ", min_y: " << box.min_y << ", max_y: " << box.max_y << "]" << std::endl;
-
-
-	// std::cout <<  point_inside_polygon(locations, 9, 2, box);
-	// exit(0);
-
-	// std::cout << point_inside_polygon(locations, 8, 3) << std::endl;
-	// exit(0);
-	// std::cout << point_inside_polygon(locations, 6, 1) << std::endl;
-	// std::cout << point_inside_polygon(locations, 7, 1) << std::endl;
-	// std::cout << point_inside_polygon(locations, 1, 4) << std::endl;
-	// exit(0);
-
-	// std::cout << point_inside_polygon(locations, 4, 5) << std::endl;
-	// exit(0);
-
-
-	for (uint64_t i = 0; i < (locations.size() - 1); i++) {
-		for (uint64_t j = i+1; j < locations.size(); j++) {
+	std::map<uint64_t, std::pair<int, int>> areas;
+	for (int i = 0; i < (locations.size() - 1); i++) {
+		for (int j = i+1; j < locations.size(); j++) {
 			uint64_t area = area_from_corners(
 					locations[i].first,
 					locations[i].second,
 					locations[j].first,
 					locations[j].second
 				);
-			if (area > part1)
-				part1 = area;
-
-			if (area > part2 && is_valid_rectangle(locations, i, j, box)) {
-				part2 = area;
-			} 
+			areas[area] = {i, j};
 		}
+	}
+
+	auto it = areas.rbegin();
+	part1 = (*it).first;
+
+	while (it != areas.rend()) {
+		auto p = (*it).second;
+		// std::cout << (*it).first << std::endl;
+		if (is_valid_rectangle(locations, p.first, p.second)) {
+			part2 = (*it).first;
+			break;
+		} 
+		it++;
 	}
 
 
